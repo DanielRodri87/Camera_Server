@@ -14,23 +14,24 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.image_server2.databinding.ActivityMainBinding
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
+
     private lateinit var binding: ActivityMainBinding
     private var imageCapture: ImageCapture? = null
     private lateinit var outputDirectory: File
     private lateinit var cameraExecutor: ExecutorService
 
-    // Configuração do servidor
-    private val SERVER_HOST = "172.17.0.1"  // Substitua pelo IP do seu servidor
+    // IP e porta do servidor Python
+    private val SERVER_HOST = "10.180.47.194"
     private val SERVER_PORT = 4400
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,7 +39,6 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Solicitar permissões da câmera
         if (allPermissionsGranted()) {
             startCamera()
         } else {
@@ -47,7 +47,6 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        // Configurar o botão de captura
         binding.captureButton.setOnClickListener {
             takePhoto()
         }
@@ -59,31 +58,30 @@ class MainActivity : AppCompatActivity() {
     private fun takePhoto() {
         val imageCapture = imageCapture ?: return
 
-        // Criar arquivo temporário para armazenar a foto
         val photoFile = File(
             outputDirectory,
             SimpleDateFormat(FILENAME_FORMAT, Locale.US).format(System.currentTimeMillis()) + ".jpg"
         )
 
-        // Configurar metadados da captura
         val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
-        // Capturar a foto
         imageCapture.takePicture(
-            outputOptions, ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageSavedCallback {
+            outputOptions, ContextCompat.getMainExecutor(this),
+            object : ImageCapture.OnImageSavedCallback {
                 override fun onError(exc: ImageCaptureException) {
                     Log.e(TAG, "Falha ao capturar foto: ${exc.message}", exc)
+                    Toast.makeText(baseContext, "Erro ao capturar foto", Toast.LENGTH_SHORT).show()
                 }
 
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                     val msg = "Foto capturada: ${photoFile.absolutePath}"
-                    Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
                     Log.d(TAG, msg)
+                    Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
 
-                    // Enviar a imagem para o servidor em uma thread separada
+                    // Envia para o servidor em background
                     CoroutineScope(Dispatchers.IO).launch {
                         try {
-                            com.example.image_server2.NetworkClient.sendImage(photoFile, SERVER_HOST, SERVER_PORT)
+                            NetworkClient.sendImage(photoFile, SERVER_HOST, SERVER_PORT)
                             runOnUiThread {
                                 Toast.makeText(baseContext, "Imagem enviada com sucesso", Toast.LENGTH_SHORT).show()
                             }
@@ -100,33 +98,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-
         cameraProviderFuture.addListener({
-            // Vincular ciclo de vida da câmera
             val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-
-            // Preview
             val preview = Preview.Builder().build().also {
                 it.setSurfaceProvider(binding.viewFinder.surfaceProvider)
             }
-
-            // Seletor de câmera (traseira por padrão)
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-            // Configurar captura de imagem
             imageCapture = ImageCapture.Builder().build()
 
             try {
-                // Desvincular casos de uso antes de recriar
                 cameraProvider.unbindAll()
-
-                // Vincular casos de uso à câmera
-                cameraProvider.bindToLifecycle(
-                    this, cameraSelector, preview, imageCapture
-                )
-
-            } catch(exc: Exception) {
-                Log.e(TAG, "Falha na vinculação", exc)
+                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
+            } catch (exc: Exception) {
+                Log.e(TAG, "Falha na vinculação da câmera", exc)
             }
 
         }, ContextCompat.getMainExecutor(this))
@@ -144,16 +128,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray
+        requestCode: Int, permissions: Array<String>, grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
-            if (allPermissionsGranted()) {
-                startCamera()
-            } else {
-                Toast.makeText(this, "Permissões não concedidas pelo usuário", Toast.LENGTH_SHORT).show()
+            if (allPermissionsGranted()) startCamera()
+            else {
+                Toast.makeText(this, "Permissões não concedidas", Toast.LENGTH_SHORT).show()
                 finish()
             }
         }

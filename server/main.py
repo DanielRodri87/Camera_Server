@@ -1,7 +1,7 @@
 import socket
 import struct
 
-HOST = "172.17.0.1"  # Escuta em todas as interfaces
+HOST = "0.0.0.0"  # Escuta em todas as interfaces
 PORT = 4400
 
 def receive_image(conn):

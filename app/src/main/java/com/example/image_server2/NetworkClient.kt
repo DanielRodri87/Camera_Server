@@ -19,7 +19,6 @@ object NetworkClient {
         // Envia imagem
         output.write(bytes)
         output.flush()
-
         socket.close()
     }
 }
