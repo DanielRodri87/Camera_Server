@@ -49,5 +49,6 @@ def main():
                     print("[ERRO] Nenhuma imagem recebida.")
 
 
+
 if __name__ == "__main__":
     main()
