@@ -31,7 +31,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cameraExecutor: ExecutorService
 
     // IP e porta do servidor Python
-    private val SERVER_HOST = "10.180.47.194"
+    private val SERVER_HOST = "192.168.1.16"
     private val SERVER_PORT = 4400
 
     override fun onCreate(savedInstanceState: Bundle?) {
